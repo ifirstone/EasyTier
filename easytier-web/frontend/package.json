@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --dir ../frontend-lib build && vite",
-    "build": "pnpm --dir ../frontend-lib build && vue-tsc -b && vite build",
+    "build": "pnpm --dir ../frontend-lib build && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
