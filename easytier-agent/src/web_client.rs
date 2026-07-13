@@ -60,11 +60,13 @@ impl WebClient {
             "owner": owner,
         });
         let url = format!("{}/api/v1/agent/register", self.config.server_url);
+        tracing::debug!(url = %url, body = %req, "sending register request");
         let resp = self.client.post(&url).json(&req).send().await?;
         if !resp.status().is_success() {
             anyhow::bail!("register failed: {}", resp.status());
         }
         let data: serde_json::Value = resp.json().await?;
+        tracing::debug!(response = %data, "register response");
         if let Some(id) = data.get("agent_id").and_then(|v| v.as_str()) {
             self.agent_id = id.to_string();
         }
@@ -90,9 +92,13 @@ impl WebClient {
             "core_status": core_status,
         });
         let url = format!("{}/api/v1/agent/heartbeat", self.config.server_url);
+        tracing::debug!(url = %url, body = %req, "sending heartbeat request");
         let resp = self.client.post(&url).json(&req).send().await?;
         if !resp.status().is_success() {
             warn!(status = %resp.status(), "heartbeat failed");
+        } else {
+            let data: serde_json::Value = resp.json().await?;
+            tracing::debug!(response = %data, "heartbeat response");
         }
         Ok(())
     }
@@ -103,11 +109,13 @@ impl WebClient {
             return Ok(vec![]);
         }
         let url = format!("{}/api/v1/agent/commands/{}", self.config.server_url, self.agent_id);
+        tracing::debug!(url = %url, "fetching commands");
         let resp = self.client.get(&url).send().await?;
         if !resp.status().is_success() {
             return Ok(vec![]);
         }
         let data: AgentCommandsResponse = resp.json().await?;
+        tracing::debug!(command_count = data.commands.len(), "commands response");
         Ok(data.commands)
     }
 
@@ -122,6 +130,7 @@ impl WebClient {
             "result": {},
         });
         let url = format!("{}/api/v1/agent/commands/ack", self.config.server_url);
+        tracing::debug!(url = %url, body = %req, "acking command");
         let _ = self.client.post(&url).json(&req).send().await?;
         Ok(())
     }
