@@ -290,12 +290,35 @@ web:
   main:
     dashboard: 仪表盘
     device_list: 设备列表
+    agent_list: Agent 列表
     device_management: 设备管理
     login_page: 登录页面
     settings: 设置
     logout: 退出登录
     language: 语言
     change_password: 修改密码
+
+  agent:
+    title: EasyTier Agent 列表
+    hostname: 主机名
+    public_ip: 公网IP
+    arch: 架构
+    os: 操作系统
+    status: Agent 状态
+    core_status: Core 状态
+    core_uri: Core 地址
+    last_heartbeat: 最后心跳
+    actions: 操作
+    installed: 已安装
+    not_installed: 未安装
+    running: 运行中
+    stopped: 已停止
+    install: 安装
+    restart: 重启
+    uninstall: 卸载
+    stop: 停止
+    keep_config: 保留配置文件
+    version: 版本
 
   device:
     list: 设备列表

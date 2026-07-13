@@ -27,6 +27,7 @@ use crate::webhook::{ManagedNetworkConfig, SharedWebhookConfig};
 use tokio::task::JoinSet;
 
 use crate::db::{Db, UserIdInDb, entity::user_running_network_configs};
+use crate::restful::agent_api::AgentManager;
 
 #[derive(rust_embed::Embed)]
 #[folder = "resources/"]
@@ -71,6 +72,8 @@ pub struct ClientManager {
 
     geoip_db: Arc<Option<maxminddb::Reader<Vec<u8>>>>,
     heartbeat_min_response_delay: Duration,
+
+    pub agent_manager: AgentManager,
 }
 
 impl ClientManager {
@@ -92,16 +95,14 @@ impl ClientManager {
         });
         ClientManager {
             tasks,
-
             listeners_cnt: Arc::new(AtomicU32::new(0)),
-
             client_sessions,
             storage: Storage::new(db),
             feature_flags,
             webhook_config,
-
             geoip_db: Arc::new(load_geoip_db(geoip_db)),
             heartbeat_min_response_delay,
+            agent_manager: AgentManager::new(),
         }
     }
 

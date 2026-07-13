@@ -59,6 +59,34 @@ export interface ParseConfigResponse {
     error?: string;
 }
 
+export interface AgentInfo {
+    agent_id: string;
+    hostname: string;
+    public_ip: string;
+    arch: string;
+    os: string;
+    current_version: string | null;
+    status: string;
+    message: string | null;
+    core_installed: boolean;
+    core_version: string | null;
+    core_running: boolean;
+    core_uri: string | null;
+    last_heartbeat: string;
+    registered_at: string;
+}
+
+export interface AgentListResponse {
+    agents: AgentInfo[];
+}
+
+export interface AgentCommandResponse {
+    command_id: string;
+    command_type: string;
+    payload: any;
+    created_at: string;
+}
+
 export class ApiClient {
     private client: AxiosInstance;
     private authFailedCb: Function | undefined;
@@ -271,6 +299,19 @@ class WebRemoteClient implements Api.RemoteClient {
     async get_network_metas(instance_ids: string[]): Promise<Api.GetNetworkMetasResponse> {
         const response = await this.client.post<any, Api.GetNetworkMetasResponse>(`/machines/${this.machine_id}/networks/metas`, {
             instance_ids: instance_ids
+        });
+        return response;
+    }
+
+    public async getAgentList(): Promise<AgentListResponse> {
+        const response = await this.client.get<any, AgentListResponse>('/agent');
+        return response;
+    }
+
+    public async sendAgentCommand(agentId: string, commandType: string, payload: any): Promise<AgentCommandResponse> {
+        const response = await this.client.post<any, AgentCommandResponse>(`/agent/${agentId}/commands`, {
+            command_type: commandType,
+            payload: payload,
         });
         return response;
     }

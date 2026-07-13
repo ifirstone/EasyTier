@@ -290,12 +290,35 @@ web:
   main:
     dashboard: Dashboard
     device_list: Device List
+    agent_list: Agent List
     device_management: Device Management
     login_page: Login Page
     settings: Settings
     logout: Logout
     language: Language
     change_password: Change Password
+
+  agent:
+    title: EasyTier Agent List
+    hostname: Hostname
+    public_ip: Public IP
+    arch: Arch
+    os: OS
+    status: Agent Status
+    core_status: Core Status
+    core_uri: Core URI
+    last_heartbeat: Last Heartbeat
+    actions: Actions
+    installed: Installed
+    not_installed: Not Installed
+    running: Running
+    stopped: Stopped
+    install: Install
+    restart: Restart
+    uninstall: Uninstall
+    stop: Stop
+    keep_config: Keep configuration files
+    version: Version
 
   device:
     list: Device List

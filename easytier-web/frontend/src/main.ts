@@ -17,6 +17,7 @@ import Dashboard from './components/Dashboard.vue'
 import DialogService from 'primevue/dialogservice';
 import ToastService from 'primevue/toastservice';
 import ConfigGenerator from './components/ConfigGenerator.vue'
+import AgentList from './components/AgentList.vue'
 
 const routes = [
     {
@@ -55,6 +56,11 @@ const routes = [
                         component: DeviceManagement,
                     }
                 ]
+            },
+            {
+                path: 'agentList',
+                name: 'agentList',
+                component: AgentList,
             },
         ]
     },
