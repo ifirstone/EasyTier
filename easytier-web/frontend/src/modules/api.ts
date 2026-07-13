@@ -228,6 +228,10 @@ export class ApiClient {
         return response;
     }
 
+    public async deleteAgent(agentId: string): Promise<void> {
+        await this.client.delete(`/agent/${agentId}`);
+    }
+
     public oidcLoginUrl() {
         return this.client.defaults.baseURL + '/auth/oidc/login';
     }

@@ -5,8 +5,7 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -145,7 +144,7 @@ struct AgentRecord {
 
 impl AgentRecord {
     fn new(req: AgentRegisterRequest, owner: String) -> Self {
-        let now = SystemTime::now();
+        let now = chrono::Utc::now();
         let agent_id = format!("agent-{}", Uuid::new_v4().simple());
         let token = Uuid::new_v4().simple().to_string();
         let info = AgentInfo {
@@ -162,14 +161,14 @@ impl AgentRecord {
             core_version: None,
             core_running: false,
             core_uri: None,
-            last_heartbeat: format!("{:?}", now),
-            registered_at: format!("{:?}", now),
+            last_heartbeat: now.to_rfc3339(),
+            registered_at: now.to_rfc3339(),
         };
         Self {
             info,
             token,
             commands: vec![],
-            updated_at: now,
+            updated_at: SystemTime::now(),
         }
     }
 
@@ -178,7 +177,7 @@ impl AgentRecord {
         self.info.current_version = req.current_version.clone();
         self.info.status = req.status.clone();
         self.info.message = req.message.clone();
-        self.info.last_heartbeat = format!("{:?}", SystemTime::now());
+        self.info.last_heartbeat = chrono::Utc::now().to_rfc3339();
         if let Some(core) = req.core_status.as_ref() {
             if let Some(installed) = core.get("installed").and_then(|v| v.as_bool()) {
                 self.info.core_installed = installed;
@@ -293,6 +292,14 @@ impl AgentStore {
         vec![]
     }
 
+    pub fn delete(&self, owner: &str, agent_id: &str) -> bool {
+        if let Some(owner_map) = self.owners.get_mut(owner) {
+            owner_map.remove(agent_id).is_some()
+        } else {
+            false
+        }
+    }
+
     pub fn update_core_status(&self, agent_id: &str, installed: bool, version: Option<String>, running: bool, uri: Option<String>) {
         for owner_map in self.owners.iter() {
             if let Some(mut record) = owner_map.get_mut(agent_id) {
@@ -377,6 +384,26 @@ async fn handle_list_agents(
 }
 
 #[instrument(skip(_state, auth_session))]
+async fn handle_delete_agent(
+    auth_session: AuthSession,
+    State(_state): State<AppStateInner>,
+    Path(agent_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let username = auth_session
+        .user
+        .as_ref()
+        .map(|u| u.db_user.username.clone())
+        .unwrap_or_default();
+    let ok = _state.agent_manager.store.delete(&username, &agent_id);
+    if ok {
+        tracing::info!(agent_id = %agent_id, "agent deleted");
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+#[instrument(skip(_state, auth_session))]
 async fn handle_send_command(
     auth_session: AuthSession,
     State(_state): State<AppStateInner>,
@@ -418,5 +445,6 @@ pub fn build_public_route() -> Router<AppStateInner> {
 pub fn build_management_route() -> Router<AppStateInner> {
     Router::new()
         .route("/api/v1/agent", get(handle_list_agents))
+        .route("/api/v1/agent/:agent_id", delete(handle_delete_agent))
         .route("/api/v1/agent/:agent_id/commands", post(handle_send_command))
 }

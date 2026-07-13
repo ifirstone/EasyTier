@@ -319,6 +319,8 @@ web:
     stop: 停止
     keep_config: 保留配置文件
     version: 版本
+    delete: 删除 Agent
+    delete_confirm: 确定要删除此 Agent 记录吗？此操作仅从服务器移除记录，不会卸载 Agent 软件。
 
   device:
     list: 设备列表

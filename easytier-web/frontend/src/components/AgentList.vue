@@ -2,7 +2,7 @@
   <div class="agent-list">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">{{ t('web.agent.title') }}</h2>
-      <Button icon="pi pi-refresh" @click="loadAgents" :loading="loading" />
+      <Button icon="pi pi-refresh" @click="loadAgents" :loading="refreshing" />
     </div>
 
     <div class="card">
@@ -42,7 +42,8 @@
             <div class="flex gap-2">
               <Button icon="pi pi-play" size="small" @click="openCommandDialog(data, 'install')" />
               <Button icon="pi pi-refresh" size="small" @click="openCommandDialog(data, 'restart')" />
-              <Button icon="pi pi-trash" size="small" severity="danger" @click="openCommandDialog(data, 'uninstall')" />
+              <Button icon="pi pi-times-circle" size="small" severity="danger" @click="openCommandDialog(data, 'uninstall')" />
+              <Button icon="pi pi-trash" size="small" severity="danger" @click="confirmDelete(data)" />
               <Button icon="pi pi-stop" size="small" severity="warning" @click="openCommandDialog(data, 'stop')" />
             </div>
           </template>
@@ -77,6 +78,16 @@
         </div>
       </div>
     </Dialog>
+
+    <Dialog v-model:visible="deleteDialogVisible" modal :header="t('web.agent.delete')" :style="{ width: '24rem' }">
+      <div class="flex flex-col gap-4">
+        <div class="text-sm">{{ t('web.agent.delete_confirm') }}</div>
+        <div class="flex gap-2 justify-end">
+          <Button :label="t('web.common.cancel')" @click="deleteDialogVisible = false" />
+          <Button :label="t('web.common.delete')" severity="danger" @click="deleteAgent" :loading="deleting" />
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -92,16 +103,23 @@ const props = defineProps({
 });
 const api = computed(() => props.api as ApiClient);
 const loading = ref(false);
+const refreshing = ref(false);
 const agents = ref([]);
 const commandDialogVisible = ref(false);
+const deleteDialogVisible = ref(false);
 const selectedAgent = ref<any>(null);
 const commandType = ref('');
 const installVersion = ref('');
 const keepConfig = ref(true);
 const sending = ref(false);
+const deleting = ref(false);
 
-const loadAgents = async () => {
-  loading.value = true;
+const loadAgents = async (silent = false) => {
+  if (!silent) {
+    loading.value = true;
+  } else {
+    refreshing.value = true;
+  }
   try {
     const data = await api.value.getAgentList();
     agents.value = data.agents || [];
@@ -109,6 +127,7 @@ const loadAgents = async () => {
     console.error('load agents failed', e);
   } finally {
     loading.value = false;
+    refreshing.value = false;
   }
 };
 
@@ -122,7 +141,13 @@ const getStatusSeverity = (status: string) => {
 
 const formatTime = (timeStr: string) => {
   if (!timeStr) return '-';
-  return timeStr;
+  try {
+    const date = new Date(timeStr);
+    if (isNaN(date.getTime())) return timeStr;
+    return date.toLocaleString();
+  } catch {
+    return timeStr;
+  }
 };
 
 const openCommandDialog = (agent: any, type: string) => {
@@ -131,6 +156,11 @@ const openCommandDialog = (agent: any, type: string) => {
   installVersion.value = '';
   keepConfig.value = true;
   commandDialogVisible.value = true;
+};
+
+const confirmDelete = (agent: any) => {
+  selectedAgent.value = agent;
+  deleteDialogVisible.value = true;
 };
 
 const getCommandTitle = () => {
@@ -174,7 +204,7 @@ const sendCommand = async () => {
     }
     await api.value.sendAgentCommand(selectedAgent.value.agent_id, commandType.value, payload);
     commandDialogVisible.value = false;
-    await loadAgents();
+    await loadAgents(true);
   } catch (e) {
     console.error('send command failed', e);
   } finally {
@@ -182,9 +212,23 @@ const sendCommand = async () => {
   }
 };
 
+const deleteAgent = async () => {
+  if (!selectedAgent.value) return;
+  deleting.value = true;
+  try {
+    await api.value.deleteAgent(selectedAgent.value.agent_id);
+    deleteDialogVisible.value = false;
+    await loadAgents(true);
+  } catch (e) {
+    console.error('delete agent failed', e);
+  } finally {
+    deleting.value = false;
+  }
+};
+
 onMounted(() => {
   loadAgents();
-  setInterval(loadAgents, 5000);
+  setInterval(() => loadAgents(true), 5000);
 });
 </script>
 
