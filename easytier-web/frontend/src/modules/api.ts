@@ -215,6 +215,19 @@ export class ApiClient {
         }
     }
 
+    public async getAgentList(): Promise<AgentListResponse> {
+        const response = await this.client.get<any, AgentListResponse>('/agent');
+        return response;
+    }
+
+    public async sendAgentCommand(agentId: string, commandType: string, payload: any): Promise<AgentCommandResponse> {
+        const response = await this.client.post<any, AgentCommandResponse>(`/agent/${agentId}/commands`, {
+            command_type: commandType,
+            payload: payload,
+        });
+        return response;
+    }
+
     public oidcLoginUrl() {
         return this.client.defaults.baseURL + '/auth/oidc/login';
     }
@@ -299,19 +312,6 @@ class WebRemoteClient implements Api.RemoteClient {
     async get_network_metas(instance_ids: string[]): Promise<Api.GetNetworkMetasResponse> {
         const response = await this.client.post<any, Api.GetNetworkMetasResponse>(`/machines/${this.machine_id}/networks/metas`, {
             instance_ids: instance_ids
-        });
-        return response;
-    }
-
-    public async getAgentList(): Promise<AgentListResponse> {
-        const response = await this.client.get<any, AgentListResponse>('/agent');
-        return response;
-    }
-
-    public async sendAgentCommand(agentId: string, commandType: string, payload: any): Promise<AgentCommandResponse> {
-        const response = await this.client.post<any, AgentCommandResponse>(`/agent/${agentId}/commands`, {
-            command_type: commandType,
-            payload: payload,
         });
         return response;
     }
