@@ -2,13 +2,26 @@
   <div class="agent-list">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">{{ t('web.agent.title') }}</h2>
-      <Button icon="pi pi-refresh" @click="loadAgents" :loading="refreshing" />
+      <Button icon="pi pi-refresh" :title="t('web.agent.tooltip_refresh')" @click="loadAgents" :loading="refreshing" />
     </div>
 
     <div class="card">
       <DataTable :value="agents" :loading="loading" paginator :rows="10" tableStyle="min-width: 80rem">
         <Column field="hostname" :header="t('web.agent.hostname')" sortable></Column>
-        <Column field="public_ip" :header="t('web.agent.public_ip')" sortable></Column>
+        <Column field="public_ip" :header="t('web.agent.public_ip')" sortable>
+          <template #body="{ data }">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">{{ getDisplayIP(data) }}</span>
+              <Button 
+                :icon="isIPUnlocked(data.agent_id) ? 'pi pi-lock-open' : 'pi pi-lock'" 
+                size="small" 
+                text 
+                :title="isIPUnlocked(data.agent_id) ? t('web.agent.ip_unlocked') : t('web.agent.ip_locked')"
+                @click="toggleIPLock(data)" 
+              />
+            </div>
+          </template>
+        </Column>
         <Column field="arch" :header="t('web.agent.arch')" sortable></Column>
         <Column field="os" :header="t('web.agent.os')" sortable></Column>
         <Column :header="t('web.agent.status')" sortable field="status">
@@ -22,6 +35,7 @@
               <Tag v-if="data.core_installed" value="Installed" severity="success" />
               <Tag v-else value="Not Installed" severity="danger" />
               <Tag v-if="data.core_running" value="Running" severity="info" />
+              <Tag v-else-if="data.core_installed" value="Stopped" severity="warning" />
               <span v-if="data.core_version" class="text-sm text-gray-500">{{ data.core_version }}</span>
             </div>
           </template>
@@ -40,11 +54,11 @@
         <Column :header="t('web.agent.actions')">
           <template #body="{ data }">
             <div class="flex gap-2">
-              <Button icon="pi pi-play" size="small" @click="openCommandDialog(data, 'install')" />
-              <Button icon="pi pi-refresh" size="small" @click="openCommandDialog(data, 'restart')" />
-              <Button icon="pi pi-times-circle" size="small" severity="danger" @click="openCommandDialog(data, 'uninstall')" />
-              <Button icon="pi pi-trash" size="small" severity="danger" @click="confirmDelete(data)" />
-              <Button icon="pi pi-stop" size="small" severity="warning" @click="openCommandDialog(data, 'stop')" />
+              <Button icon="pi pi-play" size="small" :title="t('web.agent.tooltip_install')" @click="openCommandDialog(data, 'install')" />
+              <Button icon="pi pi-refresh" size="small" :title="t('web.agent.tooltip_restart')" @click="openCommandDialog(data, 'restart')" />
+              <Button icon="pi pi-stop" size="small" :title="t('web.agent.tooltip_stop')" @click="openCommandDialog(data, 'stop')" />
+              <Button icon="pi pi-times-circle" size="small" severity="danger" :title="t('web.agent.tooltip_uninstall')" @click="openCommandDialog(data, 'uninstall')" />
+              <Button icon="pi pi-trash" size="small" severity="danger" :title="t('web.agent.tooltip_delete')" @click="confirmDelete(data)" />
             </div>
           </template>
         </Column>
@@ -55,7 +69,7 @@
       <div class="flex flex-col gap-4">
         <div v-if="selectedAgent" class="text-sm">
           <div><strong>Hostname:</strong> {{ selectedAgent.hostname }}</div>
-          <div><strong>IP:</strong> {{ selectedAgent.public_ip }}</div>
+          <div><strong>IP:</strong> {{ getDisplayIP(selectedAgent) }}</div>
           <div><strong>Status:</strong> {{ selectedAgent.status }}</div>
         </div>
 
@@ -73,7 +87,7 @@
         </div>
 
         <div class="flex gap-2 justify-end">
-          <Button label="Cancel" @click="commandDialogVisible = false" />
+          <Button :label="t('web.common.cancel')" @click="commandDialogVisible = false" />
           <Button :label="getCommandButtonLabel()" @click="sendCommand" :loading="sending" />
         </div>
       </div>
@@ -113,6 +127,58 @@ const installVersion = ref('');
 const keepConfig = ref(true);
 const sending = ref(false);
 const deleting = ref(false);
+const ipKey = ref('easytier');
+const unlockedIps = ref<Set<string>>(new Set());
+
+const encryptIP = (ip: string, key: string): string => {
+  if (!ip || !key) return ip;
+  const parts = ip.split('.').map(p => parseInt(p, 10)).filter(n => !isNaN(n));
+  const keyBytes = new TextEncoder().encode(key);
+  let hex = '';
+  for (let i = 0; i < parts.length; i++) {
+    const k = keyBytes[i % keyBytes.length];
+    const x = parts[i] ^ k;
+    hex += x.toString(16).padStart(2, '0').toUpperCase();
+  }
+  return hex || ip;
+};
+
+const decryptIP = (hex: string, key: string): string => {
+  if (!hex || !key) return hex;
+  const keyBytes = new TextEncoder().encode(key);
+  const parts: number[] = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    const x = parseInt(hex.substr(i, 2), 16);
+    const k = keyBytes[(i / 2) % keyBytes.length];
+    parts.push(x ^ k);
+  }
+  return parts.join('.');
+};
+
+const getDisplayIP = (agent: any): string => {
+  if (!agent || !agent.public_ip) return '-';
+  if (unlockedIps.value.has(agent.agent_id)) {
+    return agent.public_ip;
+  }
+  return encryptIP(agent.public_ip, ipKey.value);
+};
+
+const isIPUnlocked = (agentId: string): boolean => {
+  return unlockedIps.value.has(agentId);
+};
+
+const toggleIPLock = async (agent: any) => {
+  if (!agent) return;
+  if (unlockedIps.value.has(agent.agent_id)) {
+    unlockedIps.value.delete(agent.agent_id);
+  } else {
+    const key = window.prompt(t('web.agent.enter_decrypt_key'));
+    if (key !== null) {
+      ipKey.value = key || 'easytier';
+      unlockedIps.value.add(agent.agent_id);
+    }
+  }
+};
 
 const loadAgents = async (silent = false) => {
   if (!silent) {

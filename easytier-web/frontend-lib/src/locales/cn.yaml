@@ -321,6 +321,15 @@ web:
     version: 版本
     delete: 删除 Agent
     delete_confirm: 确定要删除此 Agent 记录吗？此操作仅从服务器移除记录，不会卸载 Agent 软件。
+    tooltip_install: 安装 EasyTier Core
+    tooltip_restart: 重启 EasyTier Core
+    tooltip_uninstall: 卸载 EasyTier Core
+    tooltip_stop: 停止 EasyTier Core
+    tooltip_delete: 删除 Agent 记录
+    tooltip_refresh: 刷新 Agent 列表
+    ip_locked: 点击解锁 IP
+    ip_unlocked: 点击锁定 IP
+    enter_decrypt_key: 输入解密密钥
 
   device:
     list: 设备列表

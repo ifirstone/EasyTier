@@ -182,7 +182,9 @@ impl AgentRecord {
             if let Some(installed) = core.get("installed").and_then(|v| v.as_bool()) {
                 self.info.core_installed = installed;
             }
-            if let Some(pid) = core.get("pid").and_then(|v| v.as_u64()) {
+            if let Some(running) = core.get("running").and_then(|v| v.as_bool()) {
+                self.info.core_running = running;
+            } else if let Some(pid) = core.get("pid").and_then(|v| v.as_u64()) {
                 self.info.core_running = self.is_pid_running(pid as u32);
             }
             if let Some(uri) = core.get("uri").and_then(|v| v.as_str()) {
@@ -192,8 +194,15 @@ impl AgentRecord {
         self.updated_at = SystemTime::now();
     }
 
-    fn is_pid_running(&self, _pid: u32) -> bool {
-        true
+    fn is_pid_running(&self, pid: u32) -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            std::path::Path::new(&format!("/proc/{}", pid)).exists()
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            true
+        }
     }
 
     fn expired(&self) -> bool {

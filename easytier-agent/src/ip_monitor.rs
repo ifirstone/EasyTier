@@ -69,14 +69,13 @@ impl IpMonitor {
                         Err(e) => warn!(error = %e, "failed to start core"),
                     }
                 }
-                let core_status = self.current_pid.map(|pid| {
-                    serde_json::json!({
-                        "installed": self.is_core_installed(),
-                        "pid": pid,
-                        "uri": self.config.uri,
-                    })
+                let core_status = serde_json::json!({
+                    "installed": self.is_core_installed(),
+                    "running": self.current_pid.is_some(),
+                    "pid": self.current_pid,
+                    "uri": self.config.uri,
                 });
-                let _ = self.web.heartbeat(&ip, core_status).await;
+                let _ = self.web.heartbeat(&ip, Some(core_status)).await;
             }
             Err(e) => {
                 warn!(error = %e, "network check failed");

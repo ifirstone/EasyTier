@@ -321,6 +321,15 @@ web:
     version: Version
     delete: Delete Agent
     delete_confirm: Are you sure you want to delete this agent record? It only removes the entry from the server and does not uninstall the agent software.
+    tooltip_install: Install EasyTier Core
+    tooltip_restart: Restart EasyTier Core
+    tooltip_uninstall: Uninstall EasyTier Core
+    tooltip_stop: Stop EasyTier Core
+    tooltip_delete: Delete Agent Record
+    tooltip_refresh: Refresh Agent List
+    ip_locked: Click to unlock IP
+    ip_unlocked: Click to lock IP
+    enter_decrypt_key: Enter decryption key
 
   device:
     list: Device List
