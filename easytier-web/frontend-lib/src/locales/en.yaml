@@ -327,9 +327,16 @@ web:
     tooltip_stop: Stop EasyTier Core
     tooltip_delete: Delete Agent Record
     tooltip_refresh: Refresh Agent List
+    tooltip_uninstall_agent: Uninstall Agent Software
     ip_locked: Click to unlock IP
     ip_unlocked: Click to lock IP
     enter_decrypt_key: Enter decryption key
+    install_version: Version
+    install_select_version: Select Version
+    prerelease: Pre
+    fetching_releases: Fetching releases...
+    fetch_releases_failed: Failed to fetch releases
+    no_matching_release: No matching release found
 
   device:
     list: Device List

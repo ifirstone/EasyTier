@@ -2,7 +2,7 @@
   <div class="agent-list">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold">{{ t('web.agent.title') }}</h2>
-      <Button icon="pi pi-refresh" :title="t('web.agent.tooltip_refresh')" @click="loadAgents" :loading="refreshing" />
+      <Button :label="t('web.agent.tooltip_refresh')" @click="loadAgents" :loading="refreshing" />
     </div>
 
     <div class="card">
@@ -31,11 +31,15 @@
         </Column>
         <Column :header="t('web.agent.core_status')">
           <template #body="{ data }">
-            <div class="flex flex-col gap-1">
+            <div v-if="data.status === 'offline'" class="flex flex-col gap-1">
+              <Tag value="Unknown" severity="warning" />
+              <Tag value="Unknown" severity="warning" />
+            </div>
+            <div v-else class="flex flex-col gap-1">
               <Tag v-if="data.core_installed" value="Installed" severity="success" />
               <Tag v-else value="Not Installed" severity="danger" />
               <Tag v-if="data.core_running" value="Running" severity="info" />
-              <Tag v-else-if="data.core_installed" value="Stopped" severity="warning" />
+              <Tag v-else-if="data.core_installed" value="Stopped" severity="danger" />
               <span v-if="data.core_version" class="text-sm text-gray-500">{{ data.core_version }}</span>
             </div>
           </template>
@@ -53,12 +57,13 @@
         </Column>
         <Column :header="t('web.agent.actions')">
           <template #body="{ data }">
-            <div class="flex gap-2">
-              <Button icon="pi pi-play" size="small" :title="t('web.agent.tooltip_install')" @click="openCommandDialog(data, 'install')" />
-              <Button icon="pi pi-refresh" size="small" :title="t('web.agent.tooltip_restart')" @click="openCommandDialog(data, 'restart')" />
-              <Button icon="pi pi-stop" size="small" :title="t('web.agent.tooltip_stop')" @click="openCommandDialog(data, 'stop')" />
-              <Button icon="pi pi-times-circle" size="small" severity="danger" :title="t('web.agent.tooltip_uninstall')" @click="openCommandDialog(data, 'uninstall')" />
-              <Button icon="pi pi-trash" size="small" severity="danger" :title="t('web.agent.tooltip_delete')" @click="confirmDelete(data)" />
+            <div class="flex flex-wrap gap-1">
+              <Button :label="t('web.agent.install')" size="small" @click="openCommandDialog(data, 'install')" />
+              <Button :label="t('web.agent.restart')" size="small" @click="openCommandDialog(data, 'restart')" />
+              <Button :label="t('web.agent.stop')" size="small" @click="openCommandDialog(data, 'stop')" />
+              <Button :label="t('web.agent.uninstall')" size="small" severity="danger" @click="openCommandDialog(data, 'uninstall')" />
+              <Button :label="t('web.agent.delete')" size="small" severity="danger" @click="confirmDelete(data)" />
+              <Button :label="t('web.agent.uninstall_agent')" size="small" severity="danger" @click="openCommandDialog(data, 'uninstall_agent')" />
             </div>
           </template>
         </Column>
@@ -74,8 +79,16 @@
         </div>
 
         <div v-if="commandType === 'install'" class="flex flex-col gap-2">
-          <label class="text-sm font-semibold">Version</label>
-          <InputText v-model="installVersion" placeholder="e.g. v2.5.0 or leave empty for latest" />
+          <label class="text-sm font-semibold">{{ t('web.agent.install_select_version') }}</label>
+          <Dropdown
+            v-model="selectedVersion"
+            :options="releases"
+            optionLabel="label"
+            optionValue="value"
+            :loading="fetchingReleases"
+            :placeholder="t('web.agent.install_select_version')"
+          />
+          <div v-if="fetchReleasesError" class="text-red-500 text-sm">{{ fetchReleasesError }}</div>
         </div>
 
         <div v-if="commandType === 'uninstall'" class="flex flex-col gap-2">
@@ -84,6 +97,10 @@
             <Checkbox id="keep-config" v-model="keepConfig" :binary="true" />
             <label for="keep-config" class="text-sm">Keep configuration files</label>
           </div>
+        </div>
+
+        <div v-if="commandType === 'uninstall_agent'" class="text-sm text-red-600">
+          This will uninstall the agent software and remove its systemd service. easytier-core will remain installed.
         </div>
 
         <div class="flex gap-2 justify-end">
@@ -108,7 +125,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Button, Column, DataTable, Dialog, InputText, Tag, Checkbox } from 'primevue';
+import { Button, Column, DataTable, Dialog, Dropdown, Tag, Checkbox } from 'primevue';
 import ApiClient from '../modules/api';
 
 const { t } = useI18n();
@@ -124,11 +141,15 @@ const deleteDialogVisible = ref(false);
 const selectedAgent = ref<any>(null);
 const commandType = ref('');
 const installVersion = ref('');
+const selectedVersion = ref('');
 const keepConfig = ref(true);
 const sending = ref(false);
 const deleting = ref(false);
 const ipKey = ref('easytier');
 const unlockedIps = ref<Set<string>>(new Set());
+const releases = ref<Array<{ label: string; value: string; prerelease: boolean }>>([]);
+const fetchingReleases = ref(false);
+const fetchReleasesError = ref('');
 
 const encryptIP = (ip: string, key: string): string => {
   if (!ip || !key) return ip;
@@ -216,12 +237,40 @@ const formatTime = (timeStr: string) => {
   }
 };
 
+const fetchReleases = async () => {
+  fetchingReleases.value = true;
+  fetchReleasesError.value = '';
+  try {
+    const resp = await fetch('https://api.github.com/repos/EasyTier/EasyTier/releases?per_page=10');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    releases.value = data.map((r: any) => ({
+      label: r.tag_name + (r.prerelease ? ` (${t('web.agent.prerelease')})` : ''),
+      value: r.tag_name,
+      prerelease: r.prerelease,
+    }));
+    if (releases.value.length > 0) {
+      selectedVersion.value = releases.value[0].value;
+    }
+  } catch (e: any) {
+    fetchReleasesError.value = t('web.agent.fetch_releases_failed') + ': ' + (e?.message || e);
+  } finally {
+    fetchingReleases.value = false;
+  }
+};
+
 const openCommandDialog = (agent: any, type: string) => {
   selectedAgent.value = agent;
   commandType.value = type;
   installVersion.value = '';
+  selectedVersion.value = '';
   keepConfig.value = true;
+  releases.value = [];
+  fetchReleasesError.value = '';
   commandDialogVisible.value = true;
+  if (type === 'install') {
+    fetchReleases();
+  }
 };
 
 const confirmDelete = (agent: any) => {
@@ -231,20 +280,22 @@ const confirmDelete = (agent: any) => {
 
 const getCommandTitle = () => {
   switch (commandType.value) {
-    case 'install': return 'Install EasyTier Core';
-    case 'restart': return 'Restart EasyTier Core';
-    case 'uninstall': return 'Uninstall EasyTier Core';
-    case 'stop': return 'Stop EasyTier Core';
+    case 'install': return t('web.agent.install') + ' EasyTier Core';
+    case 'restart': return t('web.agent.restart') + ' EasyTier Core';
+    case 'uninstall': return t('web.agent.uninstall') + ' EasyTier Core';
+    case 'stop': return t('web.agent.stop') + ' EasyTier Core';
+    case 'uninstall_agent': return t('web.agent.uninstall_agent');
     default: return 'Command';
   }
 };
 
 const getCommandButtonLabel = () => {
   switch (commandType.value) {
-    case 'install': return 'Install';
-    case 'restart': return 'Restart';
-    case 'uninstall': return 'Uninstall';
-    case 'stop': return 'Stop';
+    case 'install': return t('web.agent.install');
+    case 'restart': return t('web.agent.restart');
+    case 'uninstall': return t('web.agent.uninstall');
+    case 'stop': return t('web.agent.stop');
+    case 'uninstall_agent': return t('web.agent.uninstall_agent');
     default: return 'Send';
   }
 };
@@ -256,7 +307,7 @@ const sendCommand = async () => {
     let payload: any = {};
     switch (commandType.value) {
       case 'install':
-        payload = { version: installVersion.value || null };
+        payload = { version: selectedVersion.value || null };
         break;
       case 'uninstall':
         payload = { keep_config: keepConfig.value };
@@ -265,6 +316,9 @@ const sendCommand = async () => {
         payload = {};
         break;
       case 'stop':
+        payload = {};
+        break;
+      case 'uninstall_agent':
         payload = {};
         break;
     }

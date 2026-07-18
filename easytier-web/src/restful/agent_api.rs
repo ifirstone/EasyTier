@@ -229,6 +229,14 @@ impl std::fmt::Debug for AgentStore {
 
 impl AgentStore {
     pub fn register(&self, owner: String, req: AgentRegisterRequest) -> (String, String) {
+        if let Some(owner_map) = self.owners.get(&owner) {
+            for entry in owner_map.iter() {
+                let record = entry.value();
+                if record.info.hostname == req.hostname {
+                    return (entry.key().clone(), record.token.clone());
+                }
+            }
+        }
         let record = AgentRecord::new(req, owner.clone());
         let agent_id = record.info.agent_id.clone();
         let token = record.token.clone();

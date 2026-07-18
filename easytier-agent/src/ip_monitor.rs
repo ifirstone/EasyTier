@@ -15,6 +15,7 @@ pub struct IpMonitor {
     current_pid: Option<u32>,
     last_ip: String,
     last_hostname: String,
+    uninstall_requested: bool,
 }
 
 impl IpMonitor {
@@ -26,12 +27,17 @@ impl IpMonitor {
             current_pid: None,
             last_ip: String::new(),
             last_hostname: String::new(),
+            uninstall_requested: false,
         }
     }
 
     pub async fn run(&mut self) -> Result<()> {
         let mut last_ip_check = Instant::now() - Duration::from_secs(self.config.check_interval);
         loop {
+            if self.uninstall_requested {
+                break;
+            }
+
             let now = Instant::now();
             if now.duration_since(last_ip_check) >= Duration::from_secs(self.config.check_interval) {
                 self.check_ip_and_heartbeat().await;
@@ -43,12 +49,17 @@ impl IpMonitor {
                     for cmd in commands {
                         self.handle_command(cmd).await;
                     }
+                    let _ = self.check_ip_and_heartbeat().await;
+                    if self.uninstall_requested {
+                        break;
+                    }
                 }
                 Err(e) => warn!(error = %e, "poll commands failed"),
             }
 
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
+        Ok(())
     }
 
     async fn check_ip_and_heartbeat(&mut self) {
@@ -125,6 +136,16 @@ impl IpMonitor {
                     info!(pid = %pid, "core stopped");
                 }
             }
+            "uninstall_agent" => {
+                if let Some(pid) = self.current_pid {
+                    let _ = self.pm.stop(pid);
+                    self.current_pid = None;
+                }
+                if let Err(e) = self.uninstall_agent().await {
+                    warn!(error = %e, "uninstall agent failed");
+                }
+                self.uninstall_requested = true;
+            }
             _ => {}
         }
         let _ = self.web.ack_command(&cmd.id).await;
@@ -135,6 +156,17 @@ impl IpMonitor {
     }
 
     async fn install_core(&mut self, version: Option<&str>) -> Result<()> {
+        if self.is_core_installed() {
+            if let Some(pid) = self.current_pid {
+                let _ = self.pm.stop(pid);
+                self.current_pid = None;
+            }
+            let bin = PathBuf::from(&self.config.bin_path);
+            if bin.is_file() {
+                let _ = std::fs::remove_file(&bin);
+            }
+            info!("uninstalled old core before install");
+        }
         let arch = self.config.arch.clone().unwrap_or_else(|| std::env::consts::ARCH.to_string());
         let mut version = match version {
             Some(v) if !v.is_empty() => v.to_string(),
@@ -236,6 +268,28 @@ impl IpMonitor {
             }
         }
         info!(keep_config = keep_config, "easytier-core uninstalled");
+        Ok(())
+    }
+
+    async fn uninstall_agent(&self) -> Result<()> {
+        info!("uninstalling easytier-agent via remote command");
+        let service = crate::config::service_file_path();
+        if service.exists() {
+            std::fs::remove_file(&service)?;
+        }
+        let installed = crate::config::installed_binary_path();
+        if installed.exists() {
+            std::fs::remove_file(&installed)?;
+        }
+        let cfg = crate::config::default_config_path();
+        if cfg.exists() {
+            std::fs::remove_file(&cfg)?;
+        }
+        let cfg_dir = crate::config::install_dir();
+        if cfg_dir.exists() {
+            let _ = std::fs::remove_dir(cfg_dir);
+        }
+        info!("easytier-agent uninstalled; easytier-core left running");
         Ok(())
     }
 
