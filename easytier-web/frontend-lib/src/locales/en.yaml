@@ -313,13 +313,14 @@ web:
     not_installed: Not Installed
     running: Running
     stopped: Stopped
-    install: Install
-    restart: Restart
-    uninstall: Uninstall
-    stop: Stop
+    install: Install Core
+    restart: Restart Core
+    uninstall: Uninstall Core
+    stop: Stop Core
+    delete: Delete Agent Record
+    uninstall_agent: Uninstall Agent
     keep_config: Keep configuration files
     version: Version
-    delete: Delete Agent
     delete_confirm: Are you sure you want to delete this agent record? It only removes the entry from the server and does not uninstall the agent software.
     tooltip_install: Install EasyTier Core
     tooltip_restart: Restart EasyTier Core

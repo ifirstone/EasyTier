@@ -280,10 +280,10 @@ const confirmDelete = (agent: any) => {
 
 const getCommandTitle = () => {
   switch (commandType.value) {
-    case 'install': return t('web.agent.install') + ' EasyTier Core';
-    case 'restart': return t('web.agent.restart') + ' EasyTier Core';
-    case 'uninstall': return t('web.agent.uninstall') + ' EasyTier Core';
-    case 'stop': return t('web.agent.stop') + ' EasyTier Core';
+    case 'install': return t('web.agent.install');
+    case 'restart': return t('web.agent.restart');
+    case 'uninstall': return t('web.agent.uninstall');
+    case 'stop': return t('web.agent.stop');
     case 'uninstall_agent': return t('web.agent.uninstall_agent');
     default: return 'Command';
   }

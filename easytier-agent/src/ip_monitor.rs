@@ -16,6 +16,7 @@ pub struct IpMonitor {
     last_ip: String,
     last_hostname: String,
     uninstall_requested: bool,
+    core_version: String,
 }
 
 impl IpMonitor {
@@ -28,6 +29,7 @@ impl IpMonitor {
             last_ip: String::new(),
             last_hostname: String::new(),
             uninstall_requested: false,
+            core_version: String::new(),
         }
     }
 
@@ -85,6 +87,7 @@ impl IpMonitor {
                     "running": self.current_pid.is_some(),
                     "pid": self.current_pid,
                     "uri": self.config.uri,
+                    "version": if self.core_version.is_empty() { None } else { Some(self.core_version.clone()) },
                 });
                 let _ = self.web.heartbeat(&ip, Some(core_status)).await;
             }
@@ -153,6 +156,23 @@ impl IpMonitor {
 
     fn is_core_installed(&self) -> bool {
         Path::new(&self.config.bin_path).is_file()
+    }
+
+    fn get_core_version(&self) -> Option<String> {
+        let output = Command::new(&self.config.bin_path)
+            .arg("-V")
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let text = if stdout.len() >= stderr.len() { stdout } else { stderr };
+        let line = text.lines().next()?.trim();
+        for part in line.split_whitespace() {
+            if part.starts_with('v') && part.chars().skip(1).all(|c| c.is_ascii_digit() || c == '.') {
+                return Some(part.to_string());
+            }
+        }
+        if line.is_empty() { None } else { Some(line.to_string()) }
     }
 
     async fn install_core(&mut self, version: Option<&str>) -> Result<()> {
@@ -236,23 +256,21 @@ impl IpMonitor {
         std::fs::remove_dir_all(&temp_dir)?;
 
         info!("easytier-core installed successfully");
-        if self.current_pid.is_some() {
-            info!("restarting core with new binary");
-            if let Some(pid) = self.current_pid {
-                let _ = self.pm.stop(pid);
-                self.current_pid = None;
-            }
-            if !self.last_hostname.is_empty() {
-                match self.pm.start(&self.last_hostname) {
-                    Ok(Some(pid)) => {
-                        self.current_pid = Some(pid);
-                        info!(pid = %pid, "core restarted with new binary");
-                    }
-                    Ok(None) => {}
-                    Err(e) => warn!(error = %e, "failed to restart core after install"),
+        if let Some(pid) = self.current_pid {
+            let _ = self.pm.stop(pid);
+            self.current_pid = None;
+        }
+        if !self.last_hostname.is_empty() {
+            match self.pm.start(&self.last_hostname) {
+                Ok(Some(pid)) => {
+                    self.current_pid = Some(pid);
+                    info!(pid = %pid, "core started after install");
                 }
+                Ok(None) => {}
+                Err(e) => warn!(error = %e, "failed to start core after install"),
             }
         }
+        self.core_version = self.get_core_version().unwrap_or_default();
         Ok(())
     }
 

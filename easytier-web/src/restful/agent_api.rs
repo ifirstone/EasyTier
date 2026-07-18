@@ -190,6 +190,9 @@ impl AgentRecord {
             if let Some(uri) = core.get("uri").and_then(|v| v.as_str()) {
                 self.info.core_uri = Some(uri.to_string());
             }
+            if let Some(version) = core.get("version").and_then(|v| v.as_str()) {
+                self.info.core_version = Some(version.to_string());
+            }
         }
         self.updated_at = SystemTime::now();
     }
